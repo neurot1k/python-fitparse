@@ -52,10 +52,21 @@ IGNORE_TYPE_VALUES = (
 )
 
 BASE_TYPES = {
-    'enum': '0x00', 'sint8': '0x01', 'uint8': '0x02', 'sint16': '0x83',
-    'uint16': '0x84', 'sint32': '0x85', 'uint32': '0x86', 'string': '0x07',
-    'float32': '0x88', 'float64': '0x89', 'uint8z': '0x0A', 'uint16z': '0x8B',
-    'uint32z': '0x8C', 'byte': '0x0D',
+    'enum': '0x00',
+    'sint8': '0x01',
+    'uint8': '0x02',
+    'unit8': '0x02',  # Handle typo in Profile.xlsx
+    'sint16': '0x83',
+    'uint16': '0x84',
+    'sint32': '0x85',
+    'uint32': '0x86',
+    'string': '0x07',
+    'float32': '0x88',
+    'float64': '0x89',
+    'uint8z': '0x0A',
+    'uint16z': '0x8B',
+    'uint32z': '0x8C',
+    'byte': '0x0D',
 }
 
 
@@ -275,7 +286,15 @@ def parse_csv_fields(data, num_expected_if_empty):
     if data is None:
         return [None] * num_expected_if_empty
     elif isinstance(data, basestring):
-        return [(int(x.strip()) if x.strip().isdigit() else x.strip()) for x in data.strip().split(',')]
+        # Handle case where only a single unit is given for a list of components
+        pieces = data.strip().split(',')
+        if len(pieces) == 1 and num_expected_if_empty > 1:
+            return [data] * num_expected_if_empty
+
+        return [(int(x.strip()) if x.strip().isdigit() else x.strip()) for x in pieces]
+    elif isinstance(data, int) and num_expected_if_empty > 1:
+        # Handle case where scale is missing commas for a list of components
+        return [int(x) for x in map(''.join, zip(*[iter(str(data))]*(len(str(data))/num_expected_if_empty)))]
     else:
         return [data]
 
@@ -477,7 +496,12 @@ def get_xls_and_version_from_zip(path):
     if version_match:
         profile_version = ("%f" % float(version_match.group(1))).rstrip('0').ljust(4, '0')
 
-    return archive.open('Profile.xls'), profile_version
+    try:
+        xls_file = archive.open('Profile.xlsx')
+    except KeyError:
+        xls_file = archive.open('Profile.xls')
+
+    return xls_file, profile_version
 
 
 def main(input_xls_or_zip, output_py_path=None):
